@@ -1,5 +1,5 @@
 {
-  "name": "opencode-mem",
+  "name": "@epoch-chrono/opencode-mem",
   "version": "2.8.3",
   "description": "OpenCode plugin that gives coding agents persistent memory using local vector database",
   "type": "module",
@@ -23,11 +23,11 @@
     "local",
     "standalone"
   ],
-  "author": "opencode-mem",
+  "author": "epoch-chrono",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tickernelz/opencode-mem.git"
+    "url": "git+https://github.com/epoch-chrono/opencode-mem.git"
   },
   "publishConfig": {
     "access": "public"

@@ -28,7 +28,7 @@ Add to your OpenCode configuration at `~/.config/opencode/opencode.json`:
 
 ```jsonc
 {
-  "plugin": ["opencode-mem"],
+  "plugin": ["@epoch-chrono/opencode-mem"],
 }
 ```
 
@@ -192,7 +192,7 @@ This project is actively seeking contributions to become the definitive memory p
 
 MIT License - see LICENSE file
 
-- **This fork**: https://github.com/epoch-chrono/opencode-mymem
+- **This fork**: https://github.com/epoch-chrono/opencode-mem
 - **Original repository**: https://github.com/tickernelz/opencode-mem
 - **OpenCode Platform**: https://opencode.ai
 
