@@ -22,6 +22,7 @@ if (!existsSync(DATA_DIR)) {
 interface OpenCodeMemConfig {
   storagePath?: string;
   customSqlitePath?: string;
+  sqliteSource?: "auto" | "mise" | "brew";
   userEmailOverride?: string;
   userNameOverride?: string;
   embeddingModel?: string;
@@ -84,6 +85,7 @@ const DEFAULTS: Required<
     | "memoryProvider"
     | "memoryTemperature"
     | "customSqlitePath"
+    | "sqliteSource"
     | "autoCaptureLanguage"
     | "userEmailOverride"
     | "userNameOverride"
@@ -97,6 +99,7 @@ const DEFAULTS: Required<
   memoryProvider?: "openai-chat" | "openai-responses" | "anthropic";
   memoryTemperature?: number | false;
   customSqlitePath?: string;
+  sqliteSource?: "auto" | "mise" | "brew";
   autoCaptureLanguage?: string;
   userEmailOverride?: string;
   userNameOverride?: string;
@@ -182,17 +185,25 @@ const CONFIG_TEMPLATE = `{
   // ============================================
   // macOS SQLite Extension Loading (REQUIRED FOR macOS)
   // ============================================
-  
-  // macOS users MUST set this to use Homebrew SQLite instead of Apple's SQLite
-  // Apple's SQLite disables extension loading which breaks sqlite-vec
-  // 
-  // Common paths:
-  // - Homebrew (Intel):      "/usr/local/opt/sqlite/lib/libsqlite3.dylib"
-  // - Homebrew (Apple Silicon): "/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib"
-  // 
-  // To install: brew install sqlite
-  // To find path: brew --prefix sqlite
-  // 
+
+  // Apple's default SQLite disables extension loading which breaks sqlite-vec.
+  // On macOS you need SQLite installed via mise or Homebrew.
+  //
+  // The plugin auto-detects SQLite from mise and brew (in that order).
+  // You can force a specific source with "sqliteSource":
+  //   "auto" (default) - tries mise, then brew, then common paths
+  //   "mise"           - only look for mise-installed sqlite
+  //   "brew"           - only look for brew-installed sqlite
+  //
+  // Install via mise (recommended):
+  //   mise use -g sqlite
+  //
+  // Install via Homebrew:
+  //   brew install sqlite
+  //
+  // "sqliteSource": "auto",
+
+  // Override with an explicit path to libsqlite3 (optional, overrides sqliteSource):
   // "customSqlitePath": "/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib",
   
   // ============================================
@@ -417,6 +428,7 @@ export const CONFIG = {
   customSqlitePath: fileConfig.customSqlitePath
     ? expandPath(fileConfig.customSqlitePath)
     : undefined,
+  sqliteSource: (fileConfig.sqliteSource ?? "auto") as "auto" | "mise" | "brew",
   userEmailOverride: fileConfig.userEmailOverride,
   userNameOverride: fileConfig.userNameOverride,
   embeddingModel: fileConfig.embeddingModel ?? DEFAULTS.embeddingModel,
