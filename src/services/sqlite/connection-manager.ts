@@ -1,8 +1,9 @@
 import { Database } from "bun:sqlite";
 import * as sqliteVec from "sqlite-vec";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { execSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { log } from "../logger.js";
 import { CONFIG } from "../../config.js";
 
@@ -145,6 +146,55 @@ export class ConnectionManager {
     this.sqliteConfigured = true;
   }
 
+  private loadSqliteVecExtension(db: Database): void {
+    // First, try the official sqliteVec.load() which uses getLoadablePath() internally
+    try {
+      sqliteVec.load(db);
+      return;
+    } catch (officialError) {
+      const errMsg = String(officialError);
+      // If it's an "Unsupported platform" error, this is the known bug in
+      // sqlite-vec@0.1.7-alpha.2 where validPlatform() uses "macos"/"aarch64"/"x86_64"
+      // instead of Node.js values "darwin"/"arm64"/"x64".
+      // Fall through to our manual loading logic.
+      if (!errMsg.includes("Unsupported platform")) {
+        // Some other error (e.g. extension loading disabled) — rethrow
+        throw officialError;
+      }
+      log("sqlite-vec validPlatform bug detected, using manual extension loading", {
+        platform: process.platform,
+        arch: process.arch,
+        error: errMsg,
+      });
+    }
+
+    // Manual fallback: construct the path ourselves, bypassing the broken validPlatform check.
+    // The platform-specific packages use Node.js naming (darwin, arm64, x64),
+    // so we build the path directly.
+    const plat = process.platform;
+    const arch = process.arch;
+    const suffix = plat === "win32" ? "dll" : plat === "darwin" ? "dylib" : "so";
+    const os = plat === "win32" ? "windows" : plat;
+    const packageName = `sqlite-vec-${os}-${arch}`;
+
+    // Resolve relative to the sqlite-vec package directory
+    const sqliteVecDir = dirname(fileURLToPath(import.meta.resolve("sqlite-vec")));
+    const extensionPath = join(sqliteVecDir, "..", packageName, `vec0.${suffix}`);
+
+    log("Loading sqlite-vec extension manually", { extensionPath, packageName });
+
+    if (!statSync(extensionPath, { throwIfNoEntry: false })) {
+      throw new Error(
+        `sqlite-vec native extension not found at: ${extensionPath}\n` +
+          `Platform: ${plat}-${arch}, expected package: ${packageName}\n\n` +
+          `Try reinstalling dependencies:\n` +
+          `  bun install`
+      );
+    }
+
+    db.loadExtension(extensionPath);
+  }
+
   private initDatabase(db: Database): void {
     db.run("PRAGMA busy_timeout = 5000");
     db.run("PRAGMA journal_mode = WAL");
@@ -154,16 +204,17 @@ export class ConnectionManager {
     db.run("PRAGMA foreign_keys = ON");
 
     try {
-      sqliteVec.load(db);
+      this.loadSqliteVecExtension(db);
     } catch (error) {
       throw new Error(
         `Failed to load sqlite-vec extension: ${error}\n\n` +
-          `This usually means SQLite extension loading is disabled.\n` +
-          `On macOS, you need a SQLite build with extension support.\n\n` +
-          `Solutions:\n` +
-          `1. Install via mise: mise use -g sqlite\n` +
-          `2. Install via brew: brew install sqlite\n` +
-          `3. Set "customSqlitePath" in ~/.config/opencode/opencode-mem.jsonc`
+          `This usually means either:\n` +
+          `1. The sqlite-vec platform package is not installed (try: bun install)\n` +
+          `2. SQLite extension loading is disabled (macOS default SQLite)\n\n` +
+          `On macOS, you need a SQLite build with extension support:\n` +
+          `  - Install via mise: mise use -g sqlite\n` +
+          `  - Install via brew: brew install sqlite\n` +
+          `  - Or set "customSqlitePath" in ~/.config/opencode/opencode-mem.jsonc`
       );
     }
 
